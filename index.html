@@ -1,0 +1,974 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="赤ペンノート">
+<meta name="theme-color" content="#f5f7f8">
+<title>赤ペン読書ノート</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600&family=Shippori+Mincho:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: one narrow column like a notebook page; tabs pinned to the bottom; the entry editor slides over as a full sheet. */
+:root{
+  --paper:#f5f7f8; --sheet:#ffffff; --ink:#1d2a3a; --ink-soft:#5b6878; --rule:#d9dfe5;
+  --shu:#d0442b; --shu-soft:#f6ddd6; --grid:#eab8ab; --ok:#2f7d5b; --warn:#a46a00;
+  --st-0:#e7ebef; --st-1:#f3d9a4; --st-2:#9cc8e6; --st-3:#2f7d5b;
+  --f-head:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",system-ui,sans-serif;
+  --f-pen:"Klee One","Zen Kaku Gothic New",cursive;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#131a23; --sheet:#1b2430; --ink:#e6ebf1; --ink-soft:#9aa7b6; --rule:#2e3a49;
+  --shu:#ff7a5c; --shu-soft:#3a2420; --grid:#6b3a30; --ok:#5fc497; --warn:#e2b04a;
+  --st-0:#28323f; --st-1:#6b5422; --st-2:#2f5d7d; --st-3:#3f9a73; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#131a23; --sheet:#1b2430; --ink:#e6ebf1; --ink-soft:#9aa7b6; --rule:#2e3a49;
+  --shu:#ff7a5c; --shu-soft:#3a2420; --grid:#6b3a30; --ok:#5fc497; --warn:#e2b04a;
+  --st-0:#28323f; --st-1:#6b5422; --st-2:#2f5d7d; --st-3:#3f9a73; color-scheme:dark}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.7;-webkit-text-size-adjust:100%}
+h1,h2,h3{font-family:var(--f-head);font-weight:700;line-height:1.35;text-wrap:balance;margin:0}
+button,input,textarea,select{font:inherit;color:inherit}
+input,textarea,select{font-size:16px}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--shu);outline-offset:2px}
+.wrap{max-width:640px;margin:0 auto;padding-inline:16px;padding-block:16px 120px}
+.muted{color:var(--ink-soft)}
+.small{font-size:13px}
+.num{font-variant-numeric:tabular-nums}
+.btn{min-height:44px;padding:0 16px;border-radius:10px;border:1px solid var(--rule);background:var(--sheet);display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn.primary{background:var(--shu);border-color:var(--shu);color:#fff;font-weight:700}
+.btn.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn.danger{color:var(--shu);border-color:var(--shu)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.notice{padding:10px 12px;margin-bottom:12px;border-radius:10px;background:var(--shu-soft);font-size:14px}
+.notice[data-kind="info"]{background:var(--st-0)}
+label.f{display:block;font-weight:700;margin-bottom:4px}
+.field{display:grid;gap:4px}
+input[type=text],input[type=number],textarea,select{width:100%;padding:10px 12px;border:1px solid var(--rule);border-radius:10px;background:var(--sheet)}
+textarea{min-height:88px;resize:vertical;line-height:1.7}
+
+/* tabs */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--sheet);border-top:1px solid var(--rule);display:grid;grid-template-columns:repeat(4,1fr);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs button{min-height:56px;border:0;background:none;font-size:13px;color:var(--ink-soft);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+nav.tabs button[aria-selected="true"]{color:var(--shu);font-weight:700}
+nav.tabs .badge{font-size:11px;background:var(--shu);color:#fff;border-radius:99px;padding:0 6px;min-width:18px}
+
+/* notes */
+.bookhead{display:grid;gap:6px;margin-bottom:12px}
+.bookhead select{font-family:var(--f-head);font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.stat{background:var(--sheet);border:1px solid var(--rule);border-radius:12px;padding:8px 10px}
+.stat b{display:block;font-family:var(--f-head);font-size:22px;font-variant-numeric:tabular-nums}
+.next{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:14px;border-radius:14px;background:var(--ink);color:var(--paper);border:0;width:100%;text-align:left;min-height:64px}
+.next .no{font-family:var(--f-head);font-size:20px}
+.board{display:grid;grid-template-columns:repeat(15,minmax(0,1fr));gap:3px;margin:16px 0}
+.cell{aspect-ratio:1;border-radius:3px;background:var(--st-0);border:0;padding:0;position:relative;max-width:100%}
+.cell[data-s="記入中"]{background:var(--st-1)}
+.cell[data-s="読了"]{background:var(--st-2)}
+.cell[data-s="定着"]{background:var(--st-3)}
+.cell.due{box-shadow:inset 0 0 0 2px var(--shu)}
+.cell.star::after{content:"";position:absolute;top:2px;right:2px;width:4px;height:4px;border-radius:50%;background:var(--ink)}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--ink-soft)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.chips{display:flex;gap:6px;overflow-x:auto;margin:8px 0}
+.chip{min-height:36px;padding:0 12px;border-radius:99px;border:1px solid var(--rule);background:var(--sheet);white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.list{display:grid;border-top:1px solid var(--rule)}
+.item{display:grid;grid-template-columns:52px 1fr auto;gap:8px;align-items:center;padding:10px 4px;border:0;border-bottom:1px solid var(--rule);background:none;text-align:left;min-height:48px}
+.item .no{font-variant-numeric:tabular-nums;color:var(--ink-soft)}
+.item .c{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pill{font-size:12px;padding:1px 8px;border-radius:99px;background:var(--st-0);white-space:nowrap}
+.pill[data-s="記入中"]{background:var(--st-1)}
+.pill[data-s="読了"]{background:var(--st-2)}
+.pill[data-s="定着"]{background:var(--st-3);color:#fff}
+
+/* shelf */
+.book{background:var(--sheet);border:1px solid var(--rule);border-radius:14px;padding:14px;display:grid;gap:8px}
+.book h3{font-size:17px}
+.bar{height:6px;border-radius:99px;background:var(--st-0);overflow:hidden}
+.bar span{display:block;height:100%;background:var(--ok)}
+.stack{display:grid;gap:12px}
+
+/* editor */
+#editor{position:fixed;inset:0;z-index:10;background:var(--paper);overflow-y:auto;padding-top:env(safe-area-inset-top,0px)}
+.ehead{position:sticky;top:0;z-index:2;background:var(--paper);border-bottom:1px solid var(--rule)}
+.ehead .in{max-width:640px;margin:0 auto;padding:8px 16px;display:flex;align-items:center;gap:8px}
+.ehead .t{flex:1;min-width:0;text-align:center}
+.ehead .t b{font-family:var(--f-head);font-size:18px}
+.save{font-size:12px;color:var(--ink-soft)}
+.save[data-s="err"]{color:var(--shu);font-weight:700}
+.sec>*,.stack>*,.field>*{min-width:0}
+.sec{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;padding-block:18px;border-bottom:1px dashed var(--rule)}
+.sec h2{font-size:17px;display:flex;gap:8px;align-items:baseline}
+.sec h2 .step{font-family:var(--f-head);color:var(--shu)}
+.photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.ph{position:relative;aspect-ratio:3/4;border-radius:8px;overflow:hidden;background:var(--st-0);max-width:100%}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph .p{position:absolute;left:4px;top:4px;background:rgba(0,0,0,.6);color:#fff;font-size:11px;padding:0 6px;border-radius:6px}
+.ph .x{position:absolute;right:2px;top:2px;width:36px;height:36px;border-radius:50%;border:0;background:rgba(0,0,0,.55);color:#fff;font-size:16px}
+.ph .x.arm{background:var(--shu)}
+.drop{border:2px dashed var(--rule);border-radius:12px;padding:12px;text-align:center}
+.drop.over{border-color:var(--shu)}
+.alt{margin-top:10px;text-align:left;font-size:14px}
+.alt summary{min-height:44px;display:flex;align-items:center;justify-content:center;color:var(--ink-soft);cursor:pointer}
+.native{width:100%;min-height:44px;font-size:16px}
+.pastebox{min-height:72px;border:1px dashed var(--ink-soft);border-radius:10px;padding:10px;background:var(--sheet);font-size:16px;overflow:hidden;max-height:120px}
+.pastebox:empty::before{content:"ここを長押しして「ペースト」";color:var(--ink-soft)}
+.filebtn{position:relative;overflow:hidden}
+.filebtn input{position:absolute;inset:0;opacity:0;font-size:100px;cursor:pointer}
+.count{font-variant-numeric:tabular-nums;font-size:14px}
+.count[data-s="under"]{color:var(--ink-soft)}
+.count[data-s="over"]{color:var(--shu);font-weight:700}
+.count[data-s="ok"]{color:var(--ok);font-weight:700}
+.genko{display:grid;grid-template-columns:repeat(13,minmax(0,1fr));border-top:1px solid var(--grid);border-left:1px solid var(--grid);max-width:420px}
+.genko span{aspect-ratio:1;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);display:flex;align-items:center;justify-content:center;font-family:var(--f-head);font-size:clamp(11px,3.6vw,16px);position:relative;background:var(--sheet)}
+.genko span.mark::after{content:"";position:absolute;right:-1px;top:15%;bottom:15%;border-right:3px solid var(--shu)}
+.genko span.over{background:var(--shu-soft);color:var(--shu)}
+
+/* red pen */
+.pen{font-family:var(--f-pen);color:var(--shu);background:var(--sheet);border:1px solid var(--rule);border-radius:12px;padding:14px;display:grid;gap:8px;position:relative}
+.pen .basis{font-family:var(--f-body);font-size:12px;color:var(--ink-soft)}
+.stamp{width:64px;height:64px;border:3px solid var(--shu);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--f-head);font-size:34px;font-weight:700;transform:rotate(-8deg);float:right;margin:0 0 4px 8px}
+.pen dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 10px}
+.pen dt{font-weight:600}
+.pen dd{margin:0;color:var(--ink)}
+.pen .mk{font-size:20px;line-height:1}
+.stale{font-family:var(--f-body);font-size:13px;background:var(--st-1);color:var(--ink);padding:6px 10px;border-radius:8px}
+.thinking{font-family:var(--f-pen);color:var(--shu)}
+
+/* review */
+.card{background:var(--sheet);border:1px solid var(--rule);border-radius:16px;padding:18px;display:grid;gap:12px}
+.card .concept{font-family:var(--f-head);font-size:26px}
+.answer{border-left:3px solid var(--shu);padding-left:12px;display:grid;gap:6px}
+.howto ol{padding-left:1.4em;margin:0;display:grid;gap:6px}
+.howto section{display:grid;gap:8px;margin-bottom:22px}
+@media (prefers-reduced-motion:no-preference){#editor{animation:up .18s ease-out}@keyframes up{from{transform:translateY(16px);opacity:.6}}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div id="globalMsg" class="notice" hidden></div>
+  <main id="view"></main>
+</div>
+
+<nav class="tabs" role="tablist" aria-label="画面">
+  <button role="tab" data-tab="shelf" id="tab-shelf">本棚</button>
+  <button role="tab" data-tab="notes" id="tab-notes">ノート</button>
+  <button role="tab" data-tab="review" id="tab-review">今日の復習 <span class="badge" id="dueBadge" hidden></span></button>
+  <button role="tab" data-tab="howto" id="tab-howto">使い方</button>
+</nav>
+
+<section id="editor" hidden aria-label="記入画面"></section>
+
+<script>
+(() => {
+"use strict";
+const MIN = 45, MAX = 65, MAX_PHOTOS = 4, COLS = 13, ROWS = 5;
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad3 = n => String(n).padStart(3, "0");
+const today = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); };
+const addDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); };
+const strip = s => String(s || "").replace(/[\s　]/g, "");
+const countChars = s => Array.from(strip(s)).length;
+const clip = (s, n) => Array.from(String(s ?? "")).slice(0, n).join("");
+
+/* ---------- capabilities ---------- */
+const C = { sample: false };
+const state = { books: {}, entries: {}, current: null, tab: "notes", filter: "all", editing: null, ready: false, reviewIdx: 0, reviewShown: false };
+const blobCache = new Map();
+const stored = new Set();
+
+function msg(text, kind) {
+  const el = $("#globalMsg");
+  if (!text) { el.hidden = true; return; }
+  el.textContent = text; el.dataset.kind = kind || ""; el.hidden = false;
+}
+
+/* ---------- store (IndexedDB in this browser) ---------- */
+const LS = "akapen-note-v1";
+const idb = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open("akapen-note", 1);
+    r.onupgradeneeded = () => { const d = r.result; for (const n of ["books", "entries", "photos"]) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  }));
+  const run = async (name, mode, fn) => { const d = await open(); return new Promise((res, rej) => {
+    const t = d.transaction(name, mode); const req = fn(t.objectStore(name));
+    t.oncomplete = () => res(req ? req.result : undefined); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+  }); };
+  return {
+    get: (n, k) => run(n, "readonly", s => s.get(k)),
+    put: (n, k, v) => run(n, "readwrite", s => s.put(v, k)),
+    del: (n, k) => run(n, "readwrite", s => s.delete(k)),
+    all: async n => { const d = await open(); return new Promise((res, rej) => {
+      const out = {}; const t = d.transaction(n); const c = t.objectStore(n).openCursor();
+      c.onsuccess = () => { const cur = c.result; if (cur) { out[cur.key] = cur.value; cur.continue(); } };
+      t.oncomplete = () => res(out); t.onerror = () => rej(t.error);
+    }); }
+  };
+})();
+const DEFAULT_BOOK = { id: "b151", title: "天才科学者はこう考える 読むだけで頭がよくなる151の視点", author: "", count: 151 };
+const store = {
+  async load() {
+    const books = await idb.all("books"), entries = await idb.all("entries");
+    if (!Object.keys(books).length) {
+      const b = { ...DEFAULT_BOOK, createdAt: new Date().toISOString(), lastOpenedAt: new Date().toISOString() };
+      await idb.put("books", b.id, b); books[b.id] = b;
+    }
+    return { books, entries };
+  },
+  putBook: b => idb.put("books", b.id, { ...b }),
+  delBook: id => idb.del("books", id),
+  putEntry: (key, e) => idb.put("entries", key, JSON.parse(JSON.stringify(e))),
+  delEntry: key => idb.del("entries", key)
+};
+
+/* ---------- entry helpers ---------- */
+const keyOf = (bookId, no) => bookId + "_" + pad3(no);
+function blankEntry(bookId, no) {
+  return { bookId, no, concept: "", guess: "", readAt: null, star: false, photos: [], summary: "", memo: "",
+    feedback: null, attempts: 0, modelExample: null, stage: 0, nextReview: null, lastReview: null, updatedAt: null };
+}
+function getEntry(bookId, no) { return state.entries[keyOf(bookId, no)] || blankEntry(bookId, no); }
+function hasContent(e) { return !!(e && (e.concept || e.guess || e.summary || e.memo || (e.photos && e.photos.length) || e.readAt || e.star)); }
+function statusOf(e) { if (!hasContent(e)) return "未記入"; if (e.stage >= 2) return "定着"; if (e.readAt) return "読了"; return "記入中"; }
+const isDue = e => !!(e && e.nextReview && e.nextReview <= today());
+function bookStats(b) {
+  let read = 0, stars = 0, due = 0;
+  for (let n = 1; n <= b.count; n++) { const e = state.entries[keyOf(b.id, n)]; if (!e) continue; if (e.readAt) read++; if (e.star) stars++; if (isDue(e)) due++; }
+  return { read, stars, due };
+}
+function nextUnread(b) { for (let n = 1; n <= b.count; n++) { const e = state.entries[keyOf(b.id, n)]; if (!e || !e.readAt) return n; } return null; }
+function allDue() {
+  return Object.values(state.entries).filter(e => isDue(e) && state.books[e.bookId])
+    .sort((a, b) => (a.nextReview < b.nextReview ? -1 : a.nextReview > b.nextReview ? 1 : (a.bookId + a.no > b.bookId + b.no ? 1 : -1)));
+}
+
+/* ---------- saving ---------- */
+let saveTimer = null, saveState = "saved";
+function setSave(s) {
+  saveState = s;
+  const el = $("#saveState"); if (!el) return;
+  el.dataset.s = s;
+  el.textContent = { dirty: "未保存", saving: "保存中…", saved: "保存済み", err: "保存できませんでした" }[s];
+}
+async function saveEntryNow(e) {
+  clearTimeout(saveTimer); saveTimer = null;
+  const key = keyOf(e.bookId, e.no);
+  e.updatedAt = new Date().toISOString();
+  state.entries[key] = e;
+  setSave("saving");
+  try {
+    if (hasContent(e) || e.feedback || stored.has(key)) { await store.putEntry(key, e); stored.add(key); }
+    setSave("saved");
+  } catch (err) {
+    try { await new Promise(r => setTimeout(r, 400 + Math.random() * 600)); await store.putEntry(key, e); stored.add(key); setSave("saved"); }
+    catch { setSave("err"); }
+  }
+}
+function scheduleSave(e) { setSave("dirty"); clearTimeout(saveTimer); saveTimer = setTimeout(() => saveEntryNow(e), 700); }
+
+/* ---------- render: tabs ---------- */
+function setTab(t) {
+  state.tab = t;
+  document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t ? "true" : "false"));
+  try { localStorage.setItem(LS + "-tab", t); } catch {}
+  render();
+}
+function updateBadge() {
+  const n = allDue().length, el = $("#dueBadge");
+  el.hidden = n === 0; el.textContent = n;
+}
+function render() {
+  updateBadge();
+  const v = $("#view");
+  if (!state.ready) { v.innerHTML = '<p class="muted">読み込み中…</p>'; return; }
+  if (state.tab === "shelf") v.innerHTML = shelfHTML();
+  else if (state.tab === "notes") v.innerHTML = notesHTML();
+  else if (state.tab === "review") v.innerHTML = reviewHTML();
+  else v.innerHTML = howtoHTML();
+}
+
+/* ---------- shelf ---------- */
+let editingBook = null, armedDelete = null;
+function shelfHTML() {
+  const books = Object.values(state.books).sort((a, b) => (a.createdAt || "") < (b.createdAt || "") ? -1 : 1);
+  const list = books.map(b => {
+    const s = bookStats(b), pct = Math.round(s.read / b.count * 100);
+    if (editingBook === b.id) return `
+      <div class="book"><form class="stack" data-form="edit" data-id="${esc(b.id)}">
+        <div class="field"><label class="f" for="eb-title">本の名前</label><input type="text" id="eb-title" name="title" value="${esc(b.title)}" required></div>
+        <div class="field"><label class="f" for="eb-author">著者名（任意）</label><input type="text" id="eb-author" name="author" value="${esc(b.author || "")}"></div>
+        <div class="field"><label class="f" for="eb-count">章の数</label><input type="number" id="eb-count" name="count" min="1" max="999" value="${b.count}" required></div>
+        <div id="eb-msg" class="notice" hidden></div>
+        <div class="row"><button class="btn primary" type="submit">保存</button><button class="btn" type="button" data-act="cancelEdit">やめる</button>
+        <button class="btn danger" type="button" data-act="delBook" data-id="${esc(b.id)}">${armedDelete === b.id ? "もう一度押すと削除" : "この本を削除"}</button></div>
+        ${armedDelete === b.id ? '<p class="small muted">この本の記入内容と写真がすべて消えます。必要なら先にノート画面からCSVを書き出してください。</p>' : ""}
+      </form></div>`;
+    return `
+      <div class="book">
+        <h3>${esc(b.title)}</h3>
+        ${b.author ? `<div class="small muted">${esc(b.author)}</div>` : ""}
+        <div class="small num">読了 ${s.read} / ${b.count}章 ・ ★${s.stars}${s.due ? ` ・ <span style="color:var(--shu)">復習 ${s.due}</span>` : ""}</div>
+        <div class="bar"><span style="width:${pct}%"></span></div>
+        <div class="row"><button class="btn primary" data-act="openBook" data-id="${esc(b.id)}">ノートを開く</button><button class="btn" data-act="editBook" data-id="${esc(b.id)}">編集</button></div>
+      </div>`;
+  }).join("");
+  return `
+    <h1 style="font-size:24px;margin-bottom:12px">本棚</h1>
+    <div class="stack">${list || '<p class="muted">まだ本がありません。下のフォームから最初の本を追加してください。</p>'}</div>
+    <h2 style="font-size:18px;margin:28px 0 8px">本を追加</h2>
+    <form class="stack" data-form="add">
+      <div class="field"><label class="f" for="nb-title">本の名前</label><input type="text" id="nb-title" name="title" required placeholder="例：〇〇の教科書"></div>
+      <div class="field"><label class="f" for="nb-count">章の数</label><input type="number" id="nb-count" name="count" min="1" max="999" required placeholder="例：30" inputmode="numeric"></div>
+      <div class="field"><label class="f" for="nb-author">著者名（任意）</label><input type="text" id="nb-author" name="author"></div>
+      <p class="small muted" style="margin:0">記入項目・字数（45〜65字）・赤ペン添削・復習のしくみは、どの本でも同じです。</p>
+      <div><button class="btn primary" type="submit">追加する</button></div>
+    </form>`;
+}
+
+/* ---------- notes ---------- */
+function notesHTML() {
+  const b = state.books[state.current];
+  if (!b) return `<p class="muted">本棚から本を選ぶか、新しい本を追加してください。</p><button class="btn primary" data-act="tab" data-tab="shelf">本棚へ</button>`;
+  const s = bookStats(b), nx = nextUnread(b);
+  const opts = Object.values(state.books).map(x => `<option value="${esc(x.id)}"${x.id === b.id ? " selected" : ""}>${esc(x.title)}</option>`).join("");
+  let cells = "";
+  for (let n = 1; n <= b.count; n++) {
+    const e = state.entries[keyOf(b.id, n)], st = statusOf(e);
+    cells += `<button class="cell${e && e.star ? " star" : ""}${isDue(e) ? " due" : ""}" data-s="${st}" data-act="open" data-no="${n}" aria-label="No.${pad3(n)} ${st}"></button>`;
+  }
+  const f = state.filter;
+  let rows = "";
+  for (let n = 1; n <= b.count; n++) {
+    const e = state.entries[keyOf(b.id, n)], st = statusOf(e);
+    if (f === "unread" && e && e.readAt) continue;
+    if (f === "star" && !(e && e.star)) continue;
+    if (f === "due" && !isDue(e)) continue;
+    rows += `<button class="item" data-act="open" data-no="${n}"><span class="no">No.${pad3(n)}</span><span class="c">${e && e.concept ? esc(e.concept) : '<span class="muted">—</span>'}${e && e.star ? " ★" : ""}</span><span class="pill" data-s="${st}">${st}</span></button>`;
+  }
+  const chip = (k, l) => `<button class="chip" data-act="filter" data-f="${k}" aria-pressed="${f === k}">${l}</button>`;
+  return `
+    <div class="bookhead"><label class="small muted" for="bookSel">読んでいる本</label><select id="bookSel">${opts}</select></div>
+    <div class="stats">
+      <div class="stat"><span class="small muted">読了</span><b>${s.read}<span class="small muted"> / ${b.count}</span></b></div>
+      <div class="stat"><span class="small muted">★</span><b>${s.stars}</b></div>
+      <div class="stat"><span class="small muted">今日の復習</span><b>${allDue().length}</b></div>
+    </div>
+    ${nx ? `<button class="next" data-act="open" data-no="${nx}"><span><span class="small" style="opacity:.75">次に読む章</span><br><span class="no">No.${pad3(nx)}</span> ${esc(getEntry(b.id, nx).concept)}</span><span aria-hidden="true">→</span></button>`
+         : `<div class="notice" data-kind="info">全${b.count}章を読み終えました。</div>`}
+    <div class="board" role="group" aria-label="全体図">${cells}</div>
+    <div class="legend"><span><i style="background:var(--st-0)"></i>未記入</span><span><i style="background:var(--st-1)"></i>記入中</span><span><i style="background:var(--st-2)"></i>読了</span><span><i style="background:var(--st-3)"></i>定着</span><span><i style="box-shadow:inset 0 0 0 2px var(--shu)"></i>要復習</span></div>
+    <div class="chips" role="group" aria-label="絞り込み">${chip("all", "すべて")}${chip("unread", "未読")}${chip("star", "★")}${chip("due", "要復習")}</div>
+    <div class="list">${rows || '<p class="muted" style="padding:12px 4px">該当する章はありません。</p>'}</div>
+    <div class="row" style="margin-top:16px"><button class="btn" data-act="csv">CSVを書き出す</button></div>`;
+}
+
+/* ---------- review ---------- */
+function reviewHTML() {
+  const q = allDue();
+  if (!q.length) {
+    const future = Object.values(state.entries).filter(e => e.nextReview && e.nextReview > today() && state.books[e.bookId]).map(e => e.nextReview).sort();
+    const d = future[0];
+    return `<h1 style="font-size:24px;margin-bottom:12px">今日の復習</h1>
+      <div class="card"><p style="margin:0">今日の復習はありません。</p>
+      <p class="muted" style="margin:0">${d ? `次は ${d.replace(/-/g, "/")} に ${future.filter(x => x === d).length}件です。` : "読み終えた章は、7日後から復習に出ます。"}</p></div>`;
+  }
+  const e = q[0], b = state.books[e.bookId];
+  return `<h1 style="font-size:24px;margin-bottom:4px">今日の復習</h1>
+    <p class="muted small num" style="margin:0 0 12px">残り ${q.length}件</p>
+    <div class="card">
+      <div class="small muted">${esc(b.title)} ・ No.${pad3(e.no)}</div>
+      <div class="concept">${esc(e.concept || "（概念名なし）")}</div>
+      <p class="muted small" style="margin:0">本を見ずに、どんな見方だったか自分の言葉で思い出してください。</p>
+      <div class="field"><label class="f small" for="rv-memo">思い出したこと（任意・保存されません）</label><textarea id="rv-memo"></textarea></div>
+      ${state.reviewShown ? `
+        <div class="answer"><div><span class="small muted">自分の要約</span><br>${esc(e.summary || "（未記入）")}</div>
+</div>
+        <div class="row"><button class="btn primary" data-act="recall" data-ok="1">言えた</button><button class="btn" data-act="recall" data-ok="0">言えなかった</button></div>`
+      : `<div><button class="btn primary" data-act="reveal">答え合わせ</button></div>`}
+    </div>`;
+}
+
+/* ---------- howto ---------- */
+function howtoHTML() {
+  return `<div class="howto">
+    <h1 style="font-size:24px;margin-bottom:16px">使い方</h1>
+    <section><h2 style="font-size:18px">1章の進め方</h2><ol>
+      <li><b>概念名</b>を書き、読む前に意味を一言で<b>予想</b>する。</li>
+      <li>本文を読み、「読み終えた」を押す。刺さった章には★。</li>
+      <li>その章のページを<b>撮影</b>する（最大4枚、ページ順）。</li>
+      <li>本を閉じて、自分の言葉で<b>要約</b>（45〜65字）。</li>
+      <li>「赤ペン添削」を押す。答えではなくヒントが返ってくる。</li>
+      <li>書き直して、もう一度添削。2回目の後に「要約例を見る」が使える。</li>
+      <li>気づいたことは<b>メモ</b>に自由に書く。</li>
+</ol></section>
+    <section><h2 style="font-size:18px">字数の数え方</h2>
+      <p style="margin:0">国語の要約問題と同じです。空白と改行は数えず、句読点・記号・英数字は1字。原稿用紙の赤い縦線が45字目、66字目からは赤いマスになります。</p>
+      <p class="muted" style="margin:0">例：「一度に扱える情報には限りがあり、超えると理解も判断も落ちる。」は30字。</p></section>
+    <section><h2 style="font-size:18px">AIの使い方の方針</h2>
+      <p style="margin:0">赤ペン先生は答えを書きません。答えをそのまま見て練習すると、AIなしの力が伸びにくいためです。添削にはGoogleのGemini（無料枠）を使います。</p></section>
+    <section><h2 style="font-size:18px">復習</h2>
+      <p style="margin:0">読了から7日後に出題。「言えた」で30日後、もう一度言えたら定着。「言えなかった」は3日後にもう一度。すべての本の章がまとめて出ます。</p></section>
+    <section><h2 style="font-size:18px">保存</h2>
+      <p style="margin:0">入力は自動で、この端末のブラウザ内に保存されます。別の端末とは共有されません。機種変更やブラウザのデータ削除に備えて、ときどきバックアップを書き出してください。</p>
+      <div class="row"><button class="btn" data-act="backup">バックアップを書き出す</button>
+      <label class="btn filebtn" for="f-restore">バックアップを読み込む<input type="file" id="f-restore" accept="application/json,.json"></label></div></section>
+    <section><h2 style="font-size:18px">AI添削の設定（Gemini）</h2>
+      <p style="margin:0">Google AI Studio（aistudio.google.com）で無料のAPIキーを作り、下に貼り付けてください。キーはこの端末のブラウザ内にだけ保存されます。</p>
+      <p class="small muted" style="margin:0">無料枠では、送った文や写真がGoogleのサービス改善に使われることがあります。</p>
+      <div class="field"><label class="f" for="g-key">APIキー</label><input type="password" id="g-key" autocomplete="off" value="${esc(getKey())}" placeholder="AIza…"></div>
+      <div class="field"><label class="f" for="g-model">モデル</label><input type="text" id="g-model" value="${esc(getModel())}"></div>
+      <div class="row"><button class="btn primary" data-act="saveKey">保存</button><span id="keyMsg" class="small muted"></span></div></section>
+  </div>`;
+}
+
+/* ---------- editor ---------- */
+let curE = null, abortCtl = null, aiBusy = false, aiError = "", exBusy = false;
+function openEditor(no) {
+  const b = state.books[state.current]; if (!b) return;
+  no = Math.max(1, Math.min(b.count, no));
+  if (curE && saveTimer) saveEntryNow(curE);
+  curE = JSON.parse(JSON.stringify(getEntry(b.id, no)));
+  aiError = ""; armedPhoto = null;
+  state.editing = no;
+  const ed = $("#editor"); ed.hidden = false; document.body.style.overflow = "hidden";
+  renderEditor(); ed.scrollTop = 0; setSave("saved");
+}
+function closeEditor() {
+  if (curE && (saveTimer || saveState === "dirty" || saveState === "err")) saveEntryNow(curE);
+  if (abortCtl) abortCtl.abort();
+  $("#editor").hidden = true; document.body.style.overflow = "";
+  state.editing = null; curE = null; render();
+}
+function countBadge(n) {
+  const s = n < MIN ? "under" : n > MAX ? "over" : "ok";
+  return `<span class="count" data-s="${s}" id="sumCount">${n} / ${MIN}〜${MAX}字${s === "under" ? "　不足" : s === "over" ? "　超過" : ""}</span>`;
+}
+function genkoHTML(text) {
+  const chars = Array.from(strip(text));
+  const total = Math.max(COLS * ROWS, Math.ceil(chars.length / COLS) * COLS);
+  let h = "";
+  for (let i = 0; i < total; i++) h += `<span class="${i === MIN - 1 ? "mark" : ""}${i >= COLS * ROWS ? " over" : ""}">${esc(chars[i] || "")}</span>`;
+  return h;
+}
+function photoSrc(id) {
+  const b = blobCache.get(id); if (b) { if (!b._url) b._url = URL.createObjectURL(b); return b._url; }
+  getBlob(id).then(x => { if (x && curE && curE.photos.includes(id)) renderEditor(); });
+  return "";
+}
+let armedPhoto = null, armTimer = null;
+function renderEditor() {
+  const e = curE, b = state.books[e.bookId];
+  const fb = e.feedback, photoKey = (e.photos || []).join(",");
+  const staleText = fb && fb.text !== e.summary, stalePhoto = fb && fb.photoKey !== photoKey;
+  const canExample = (e.attempts || 0) >= 2;
+  $("#editor").innerHTML = `
+  <div class="ehead"><div class="in">
+    <button class="btn" data-act="close" aria-label="一覧へ戻る">←</button>
+    <div class="t"><b class="num">No.${pad3(e.no)}</b> <span class="small muted num">/ ${b.count}</span><br><span class="save" id="saveState" data-s="${saveState}"></span></div>
+    <button class="btn" data-act="prev" ${e.no <= 1 ? "disabled" : ""} aria-label="前の章">‹</button>
+    <button class="btn" data-act="next" ${e.no >= b.count ? "disabled" : ""} aria-label="次の章">›</button>
+  </div></div>
+  <div class="wrap" style="padding-bottom:48px">
+    <p class="small muted" style="margin:0 0 4px">${esc(b.title)}</p>
+    <div class="sec">
+      <h2><span class="step">一</span>概念名と予想</h2>
+      <div class="field"><label class="f" for="f-concept">概念名</label><input type="text" id="f-concept" data-k="concept" value="${esc(e.concept)}" placeholder="例：認知的負荷"></div>
+      <div class="field"><label class="f" for="f-guess">予想（読む前に、意味を一言で）</label><textarea id="f-guess" data-k="guess">${esc(e.guess)}</textarea></div>
+    </div>
+    <div class="sec">
+      <h2><span class="step">二</span>読む</h2>
+      <div class="row">
+        <button class="btn ${e.readAt ? "on" : ""}" data-act="toggleRead" aria-pressed="${!!e.readAt}">${e.readAt ? "読み終えた ✓ " + e.readAt.slice(5).replace("-", "/") : "読み終えた"}</button>
+        <button class="btn ${e.star ? "on" : ""}" data-act="toggleStar" aria-pressed="${!!e.star}">★ 刺さった</button>
+      </div>
+      ${e.nextReview ? `<p class="small muted num" style="margin:0">次の復習：${e.nextReview.replace(/-/g, "/")}</p>` : e.stage >= 2 ? '<p class="small muted" style="margin:0">定着しました</p>' : ""}
+    </div>
+    <div class="sec">
+      <h2><span class="step">三</span>本文の写真 <span class="small muted num">${(e.photos || []).length} / ${MAX_PHOTOS}</span></h2>
+      <div class="photos">${(e.photos || []).map((id, i) => `<div class="ph"><img src="${esc(photoSrc(id))}" alt="p${i + 1}" loading="lazy"><span class="p">p${i + 1}</span><button class="x ${armedPhoto === id ? "arm" : ""}" data-act="delPhoto" data-id="${esc(id)}" aria-label="${armedPhoto === id ? "もう一度押すと削除" : "写真を削除"}">${armedPhoto === id ? "削" : "×"}</button></div>`).join("")}</div>
+      ${(e.photos || []).length < MAX_PHOTOS ? `<div class="drop" id="drop">
+        <button class="btn primary" type="button" data-act="pick">本文の写真を追加</button>
+        <input type="file" id="f-photo" accept="image/*" multiple hidden>
+        <p class="small muted" style="margin:6px 0 0">撮影・写真ライブラリから選べます。PCでは貼り付けやドラッグでも追加できます。</p>
+        <details class="alt"><summary>写真の選択画面が開かないとき</summary>
+          <div class="field" style="margin-top:8px"><label class="f small" for="f-photo2">方法1：ここから直接選ぶ</label><input type="file" id="f-photo2" accept="image/*" multiple class="native"></div>
+          <div class="field" style="margin-top:8px"><span class="f small">方法2：写真アプリで写真を「コピー」して、下の枠を長押し →「ペースト」</span>
+          <div class="pastebox" id="pasteBox" contenteditable="true" role="textbox" aria-label="写真の貼り付け欄"></div></div>
+        </details></div>` : ""}
+      <div id="photoMsg" class="notice" hidden></div>
+    </div>
+    <div class="sec">
+      <h2><span class="step">四</span>要約 <span class="small muted">本を閉じて、自分の言葉で</span></h2>
+      <textarea id="f-summary" data-k="summary" rows="3">${esc(e.summary)}</textarea>
+      <div>${countBadge(countChars(e.summary))}</div>
+      <div class="genko" id="genko" aria-hidden="true">${genkoHTML(e.summary)}</div>
+      <div class="row">
+        ${aiBusy ? `<span class="thinking">赤ペン先生が読んでいます…</span><button class="btn" data-act="stop">止める</button>`
+                 : `<button class="btn primary" data-act="review" >赤ペン添削</button>`}
+        <button class="btn" data-act="example" ${canExample && !exBusy ? "" : "disabled"} title="文を変えて2回添削を受けると押せます">${exBusy ? "作成中…" : "要約例を見る"}</button>
+      </div>
+      ${getKey() ? "" : '<p class="small muted" style="margin:0">AI添削を使うには、「使い方」タブでGeminiのAPIキーを設定してください。</p>'}
+      ${!canExample ? `<p class="small muted num" style="margin:0">要約例は、文を変えて2回添削を受けると見られます（現在 ${e.attempts || 0}回）。</p>` : ""}
+      ${aiError ? `<div class="notice">${esc(aiError)}</div>` : ""}
+      ${fb ? penHTML(fb, staleText, stalePhoto) : ""}
+      ${e.modelExample ? `<div class="pen"><div class="basis">要約例（${countChars(e.modelExample.example)}字${countChars(e.modelExample.example) < MIN || countChars(e.modelExample.example) > MAX ? "：45〜65字の範囲外です" : ""}）</div>
+        <div style="color:var(--ink)">${esc(e.modelExample.example)}</div><div>${esc(e.modelExample.changes)}</div></div>` : ""}
+    </div>
+    <div class="sec">
+      <h2><span class="step">五</span>メモ</h2>
+      <div class="field"><label class="f" for="f-memo">気づいたこと、使えそうな場面など（自由に）</label><textarea id="f-memo" data-k="memo">${esc(e.memo || "")}</textarea></div>
+    </div>
+  </div>`;
+  setSave(saveState);
+  wireDrop();
+}
+function penHTML(fb, staleText, stalePhoto) {
+  const marks = (fb.checks || []).map(c => `<dt>${esc(c.item)} <span class="mk">${esc(c.mark)}</span></dt><dd>${esc(c.comment)}</dd>`).join("");
+  return `<div class="pen">
+    ${fb.grade ? `<div class="stamp" aria-label="総合評価 ${esc(fb.grade)}">${esc(fb.grade)}</div>` : ""}
+    <div class="basis">${fb.basis === "text" ? `本文の写真${fb.photoCount}枚をもとに添削` : "写真なし：概念の一般的な意味で添削"} ・ ${esc(fb.count)}字の文に対して</div>
+    ${staleText ? '<div class="stale">この添削は書き直す前の文に対するものです。</div>' : ""}
+    ${!staleText && stalePhoto ? '<div class="stale">添削の後で写真が変わりました。</div>' : ""}
+    ${fb.basis === "text" && fb.readable && fb.readable !== "すべて読めた" ? `<div class="stale">写真：${esc(fb.readable)}。ページ全体をまっすぐ、明るく撮り直すと読みやすくなります。</div>` : ""}
+    <dl>${marks}</dl>
+    ${fb.coverage ? `<div><b>本文との対応</b>　<span style="color:var(--ink)">${esc(fb.coverage)}</span></div>` : ""}
+    ${fb.good ? `<div><b>良い点</b>　<span style="color:var(--ink)">${esc(fb.good)}</span></div>` : ""}
+    ${fb.hint ? `<div><b>ヒント</b>　<span style="color:var(--ink)">${esc(fb.hint)}</span></div>` : ""}
+    ${fb.question ? `<div><b>問い</b>　<span style="color:var(--ink)">${esc(fb.question)}</span></div>` : ""}
+  </div>`;
+}
+function liveSummary() {
+  const n = countChars(curE.summary), el = $("#sumCount");
+  if (el) el.outerHTML = countBadge(n);
+  const g = $("#genko"); if (g) g.innerHTML = genkoHTML(curE.summary);
+}
+
+/* ---------- photos ---------- */
+function photoMsg(t) { const el = $("#photoMsg"); if (!el) return; el.textContent = t || ""; el.hidden = !t; }
+async function shrink(file) {
+  let bmp;
+  try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+  catch {
+    bmp = await new Promise((res, rej) => { const img = new Image(); const u = URL.createObjectURL(file); img.onload = () => res(img); img.onerror = () => rej(new Error("decode")); img.src = u; });
+  }
+  const w = bmp.width, h = bmp.height, s = Math.min(1, 1600 / Math.max(w, h));
+  const cv = document.createElement("canvas"); cv.width = Math.round(w * s); cv.height = Math.round(h * s);
+  cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+  return await new Promise((res, rej) => cv.toBlob(b => b ? res(b) : rej(new Error("encode")), "image/jpeg", 0.85));
+}
+async function addPhotos(files) {
+  if (!curE) return;
+  files = Array.from(files || []).filter(f => !f.type || f.type.startsWith("image/") || /\.(heic|heif|jpe?g|png)$/i.test(f.name || ""));
+  if (!files.length) { photoMsg("画像ファイルが見つかりませんでした。"); return; }
+  const room = MAX_PHOTOS - curE.photos.length;
+  const skipped = Math.max(0, files.length - room);
+  files = files.slice(0, Math.max(0, room));
+  const notes = [];
+  if (skipped) notes.push(`写真は1章につき${MAX_PHOTOS}枚までです。${skipped}枚は追加しませんでした。`);
+  photoMsg("写真を準備しています…");
+  for (const f of files) {
+    let blob;
+    try { blob = await shrink(f); }
+    catch { notes.push(/hei[cf]/i.test((f.type || "") + (f.name || "")) ? "HEIC形式の写真をこの環境で読めませんでした。カメラの設定を「互換性優先」にするか、スクリーンショットで追加してください。" : "読み込めない画像がありました。"); continue; }
+    const id = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    try { await idb.put("photos", id, blob); }
+    catch { notes.push("写真を保存できませんでした。端末の空き容量を確認して、もう一度追加してください。"); continue; }
+    blobCache.set(id, blob);
+    curE.photos.push(id);
+  }
+  await saveEntryNow(curE);
+  renderEditor();
+  photoMsg([...new Set(notes)].join(" "));
+}
+async function getBlob(id) {
+  if (blobCache.has(id)) return blobCache.get(id);
+  try { const b = await idb.get("photos", id); if (b) { blobCache.set(id, b); return b; } } catch {}
+  return null;
+}
+function wireDrop() {
+  const d = $("#drop"); if (!d) return;
+  d.addEventListener("dragover", ev => { ev.preventDefault(); d.classList.add("over"); });
+  d.addEventListener("dragleave", () => d.classList.remove("over"));
+  d.addEventListener("drop", ev => { ev.preventDefault(); d.classList.remove("over"); addPhotos(ev.dataTransfer.files); });
+}
+
+/* ---------- AI ---------- */
+const AI_ERR = {
+  not_granted: "AIの利用が許可されませんでした。もう一度押すと確認画面が出ます。",
+  rate_limited: "Geminiの無料枠の上限か、混み合っています。1分ほど待ってからもう一度押してください。",
+  no_key: "GeminiのAPIキーが未設定です。「使い方」タブの設定で入力してください。",
+  bad_key: "GeminiのAPIキーが正しくないか、使えない状態です。「使い方」タブで確認してください。",
+  network: "通信できませんでした。電波の良い所でもう一度押してください。",
+  images_unavailable: "この環境では写真を送れません。",
+  image_rejected: "写真を読み込めませんでした。撮り直してください。",
+  invalid_json: "AIの返答を読み取れませんでした。もう一度押してください。",
+  empty_completion: "AIの返答が空でした。もう一度押してください。",
+  refused: "AIがこの内容への返答を控えました。",
+  prompt_too_large: "文が長すぎます。",
+  session_expired: "ログインの期限が切れました。ページを開き直してください。",
+  upstream_error: "通信に失敗しました。もう一度押してください。",
+};
+const GEM = "https://generativelanguage.googleapis.com/v1beta/";
+const getKey = () => { try { return localStorage.getItem(LS + "-gkey") || ""; } catch { return ""; } };
+const getModel = () => { try { return localStorage.getItem(LS + "-gmodel") || "gemini-2.5-flash"; } catch { return "gemini-2.5-flash"; } };
+const b64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(blob); });
+async function pickModel(key) {
+  const r = await fetch(GEM + "models?pageSize=200", { headers: { "x-goog-api-key": key } });
+  if (!r.ok) return null;
+  const j = await r.json();
+  const ms = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent") && /flash/.test(m.name) && !/lite|tts|image|live|audio|thinking-exp/.test(m.name)).map(m => m.name.replace(/^models\//, ""));
+  return ms.sort().reverse()[0] || null;
+}
+async function geminiJson(prompt, blobs, signal) {
+  const key = getKey();
+  if (!key) throw { code: "no_key" };
+  const parts = [{ text: prompt }];
+  for (const b of blobs || []) parts.push({ inline_data: { mime_type: b.type || "image/jpeg", data: await b64(b) } });
+  const body = JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.4 } });
+  const call = model => fetch(GEM + "models/" + model + ":generateContent", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body, signal });
+  let r;
+  try { r = await call(getModel()); } catch (err) { throw { code: signal && signal.aborted ? "cancelled" : "network" }; }
+  if (r.status === 404) {
+    const m = await pickModel(key).catch(() => null);
+    if (m) { try { localStorage.setItem(LS + "-gmodel", m); } catch {} r = await call(m).catch(() => null); }
+    if (!r) throw { code: "network" };
+  }
+  if (!r.ok) {
+    let detail = ""; try { detail = (await r.json()).error.message || ""; } catch {}
+    throw { code: r.status === 429 ? "rate_limited" : (r.status === 400 && /key/i.test(detail)) || r.status === 403 ? "bad_key" : "upstream_error", status: r.status, detail };
+  }
+  const j = await r.json();
+  const cand = (j.candidates || [])[0];
+  if (!cand) throw { code: j.promptFeedback && j.promptFeedback.blockReason ? "refused" : "empty_completion" };
+  const text = ((cand.content && cand.content.parts) || []).map(p => p.text || "").join("");
+  const m = text.indexOf("{"), n = text.lastIndexOf("}");
+  if (m < 0 || n < m) throw { code: "invalid_json" };
+  try { return JSON.parse(text.slice(m, n + 1)); } catch { throw { code: "invalid_json" }; }
+}
+const aiErrText = e => (e && AI_ERR[e.code]) || "添削できませんでした（" + ((e && e.code) || "通信エラー") + "）。もう一度押してください。";
+function buildPrompt(e, b, photoCount) {
+  const withPhotos = photoCount > 0;
+  const prev = e.feedback && e.feedback.hint ? `\n前回のヒント：「${e.feedback.hint}」\n書き直しがこのヒントに応えているかも見てください。` : "";
+  return `あなたは国語の「赤ペン先生」です。学習者が本の1章を読み、本を閉じて自分の言葉で書いた要約を添削します。
+
+# 守ること
+- 模範解答、書き換え例、具体的な言い回しの提案は書かない。気づきを促すヒントと問いだけを出す。
+- 字数はアプリが数えた値を正とする。自分で数えない。字数の過不足は総合評価に入れない。
+${withPhotos
+  ? `- 添付画像${photoCount}枚は、この章の本文ページの写真（ページ順）。写真の本文を根拠にし、写っていない部分は断定しない。本文の引用は全体で1か所、15字以内まで。読めない部分があれば readable で知らせ、読めた範囲で添削する。`
+  : `- 本文は手元にない前提で、概念の一般的な意味をもとに判断する。本文の内容を断定しない。`}
+- 日本語で、短く具体的に書く。
+
+# 情報
+本：${b.title}
+章：No.${pad3(e.no)}
+概念名：${e.concept}
+字数制限：${MIN}字以上${MAX}字以内
+実際の字数：${countChars(e.summary)}字
+要約：「${e.summary}」${prev}
+
+# 評価
+- 核心：${withPhotos ? "本文で筆者が最も伝えたい主張を捉えているか" : "概念の中心となる考え方を捉えているか"}
+- 正確さ：${withPhotos ? "本文との食い違い、言い過ぎ、本文にない付け足しがないか" : "誤解、言い過ぎ、別の概念との混同がないか"}
+- 明快さ：一読で意味が通るか、主語と述語が対応しているか
+各項目を ○ △ × で評価する。総合は A（主張を正確に捉え明快）、B（主張はあるが曖昧さや抜けがある）、C（主張がずれている）。
+
+# 出力
+説明や前置きを付けず、次の形のJSONだけを返す。
+{
+${withPhotos ? '  "readable": "すべて読めた / 一部読めない / 読めない のどれか",\n' : ""}  "grade": "A/B/C",
+  "checks": [
+    {"item": "核心", "mark": "○/△/×", "comment": "40字以内"},
+    {"item": "正確さ", "mark": "○/△/×", "comment": "40字以内"},
+    {"item": "明快さ", "mark": "○/△/×", "comment": "40字以内"}
+  ],
+${withPhotos ? '  "coverage": "押さえた部分と抜けた部分（冒頭の問い、具体例、結論など）。60字以内、答えは書かない",\n' : ""}  "good": "良い点を1つ（40字以内）",
+  "hint": "書き直しのヒントを1つ（60字以内、答えは書かない）",
+  "question": "本文を思い出すための問いを1つ（40字以内）"
+}`;
+}
+function validateFb(r, withPhotos) {
+  r = r && typeof r === "object" ? r : {};
+  const mark = m => ["○", "△", "×"].includes(String(m || "").trim()) ? String(m).trim() : "";
+  const items = ["核心", "正確さ", "明快さ"];
+  const checks = items.map(it => { const c = (Array.isArray(r.checks) ? r.checks : []).find(x => x && x.item === it) || {}; return { item: it, mark: mark(c.mark), comment: clip(c.comment, 40) }; });
+  const grade = ["A", "B", "C"].includes(String(r.grade || "").trim().toUpperCase()) ? String(r.grade).trim().toUpperCase() : "";
+  const readable = ["すべて読めた", "一部読めない", "読めない"].includes(r.readable) ? r.readable : (withPhotos ? "一部読めない" : "");
+  return { grade, checks, coverage: withPhotos ? clip(r.coverage, 60) : "", readable: withPhotos ? readable : "", good: clip(r.good, 40), hint: clip(r.hint, 60), question: clip(r.question, 40) };
+}
+async function runReview() {
+  const e = curE, b = state.books[e.bookId];
+  aiError = "";
+  const miss = [!e.concept.trim() && "概念名", !e.summary.trim() && "要約"].filter(Boolean);
+  if (miss.length) { aiError = miss.join("と") + "を書いてから押してください。"; renderEditor(); return; }
+  const photoKey = (e.photos || []).join(",");
+  if (e.feedback && e.feedback.text === e.summary && e.feedback.photoKey === photoKey) { aiError = "前回と同じ文です。書き直してから押してください。"; renderEditor(); return; }
+  await saveEntryNow(e);
+  aiBusy = true; renderEditor();
+  let blobs = [];
+  if (e.photos.length) blobs = (await Promise.all(e.photos.map(getBlob))).filter(Boolean).slice(0, MAX_PHOTOS);
+  const withPhotos = blobs.length > 0;
+  abortCtl = new AbortController();
+  try {
+    const r = await geminiJson(buildPrompt(e, b, blobs.length), blobs, abortCtl.signal);
+    if (curE !== e) return;
+    const fb = validateFb(r, withPhotos);
+    const changed = !e.feedback || e.feedback.text !== e.summary;
+    Object.assign(fb, { text: e.summary, count: countChars(e.summary), basis: withPhotos ? "text" : "general", photoCount: blobs.length, photoKey, createdAt: new Date().toISOString() });
+    e.feedback = fb;
+    if (changed) e.attempts = (e.attempts || 0) + 1;
+    if (e.photos.length && !withPhotos) aiError = "写真を送れなかったため、写真なしで添削しました。";
+    await saveEntryNow(e);
+  } catch (err) {
+    if (curE === e && err && err.code !== "cancelled") aiError = aiErrText(err);
+  } finally {
+    aiBusy = false; abortCtl = null; if (curE === e) renderEditor();
+  }
+}
+async function runExample() {
+  const e = curE, b = state.books[e.bookId];
+  if ((e.attempts || 0) < 2) return;
+  aiError = ""; exBusy = true; renderEditor();
+  const prompt = `学習者が本の1章について書いた要約をもとに、要約例を1つ作ってください。
+本：${b.title}
+概念名：${e.concept}
+学習者の要約：「${e.summary}」
+${e.feedback && e.feedback.hint ? `添削でのヒント：「${e.feedback.hint}」\n` : ""}
+# 守ること
+- 学習者の要約の良い所を活かす。
+- 本文の文をつなぎ合わせず、自分の言葉で言い換える。概念名などの用語を除き、本文と同じ言い回しは使わない。
+- 空白を除いて${MIN}字以上${MAX}字以内に収める。
+
+説明や前置きを付けず、次の形のJSONだけを返す。
+{"example": "要約例", "changes": "どこをなぜ変えたか（60字以内）"}`;
+  try {
+    const r = await geminiJson(prompt, [], null);
+    if (curE !== e) return;
+    e.modelExample = { example: clip(r && r.example, 120), changes: clip(r && r.changes, 60), createdAt: new Date().toISOString() };
+    await saveEntryNow(e);
+  } catch (err) { if (curE === e) aiError = aiErrText(err); }
+  finally { exBusy = false; if (curE === e) renderEditor(); }
+}
+
+/* ---------- files ---------- */
+function saveFile(name, blob) {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+}
+async function exportBackup() {
+  msg("バックアップを作っています…", "info");
+  const photos = {};
+  for (const e of Object.values(state.entries)) for (const id of e.photos || []) { const b = await getBlob(id); if (b) photos[id] = await b64(b); }
+  const data = { app: "akapen-note", version: 1, exportedAt: new Date().toISOString(), books: state.books, entries: state.entries, photos };
+  saveFile("akapen-note-backup-" + today() + ".json", new Blob([JSON.stringify(data)], { type: "application/json" }));
+  msg("");
+}
+async function importBackup(file) {
+  try {
+    const d = JSON.parse(await file.text());
+    if (d.app !== "akapen-note") throw 0;
+    for (const [id, bk] of Object.entries(d.books || {})) { await idb.put("books", id, bk); state.books[id] = bk; }
+    for (const [k, e] of Object.entries(d.entries || {})) { await idb.put("entries", k, e); state.entries[k] = e; stored.add(k); }
+    for (const [id, data] of Object.entries(d.photos || {})) {
+      const bin = atob(data), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+      const blob = new Blob([a], { type: "image/jpeg" }); await idb.put("photos", id, blob); blobCache.set(id, blob);
+    }
+    if (!state.books[state.current]) state.current = Object.keys(state.books)[0] || null;
+    msg("バックアップを読み込みました。", "info"); render();
+  } catch { msg("このファイルは読み込めませんでした。書き出したバックアップ（.json）を選んでください。"); }
+}
+/* ---------- CSV ---------- */
+async function exportCSV() {
+  const b = state.books[state.current]; if (!b) return;
+  const q = v => '"' + String(v ?? "").replace(/"/g, '""') + '"';
+  const head = ["本の名前", "No", "概念名", "予想", "要約", "要約の字数", "要約の評価", "メモ", "★", "写真の枚数", "読了日", "次の復習日", "状態"];
+  const lines = [head.map(q).join(",")];
+  for (let n = 1; n <= b.count; n++) {
+    const e = state.entries[keyOf(b.id, n)]; if (!hasContent(e)) continue;
+    lines.push([b.title, pad3(n), e.concept, e.guess, e.summary, countChars(e.summary), e.feedback ? e.feedback.grade : "", e.memo || "", e.star ? "★" : "", (e.photos || []).length, e.readAt || "", e.nextReview || "", statusOf(e)].map(q).join(","));
+  }
+  saveFile(b.title.replace(/[\\/:*?"<>|]/g, "_").slice(0, 60) + ".csv", new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv" }));
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click", async ev => {
+  const t = ev.target.closest("[data-act],[data-tab]"); if (!t) return;
+  if (t.matches("nav.tabs button")) { setTab(t.dataset.tab); return; }
+  const a = t.dataset.act;
+  if (a === "tab") return setTab(t.dataset.tab);
+  if (a === "open") return openEditor(+t.dataset.no);
+  if (a === "filter") { state.filter = t.dataset.f; return render(); }
+  if (a === "csv") return exportCSV();
+  if (a === "backup") return exportBackup();
+  if (a === "saveKey") {
+    try { localStorage.setItem(LS + "-gkey", $("#g-key").value.trim()); localStorage.setItem(LS + "-gmodel", $("#g-model").value.trim() || "gemini-2.5-flash"); $("#keyMsg").textContent = "保存しました"; }
+    catch { $("#keyMsg").textContent = "保存できませんでした"; }
+    return;
+  }
+  if (a === "openBook") { await selectBook(t.dataset.id); return setTab("notes"); }
+  if (a === "editBook") { editingBook = t.dataset.id; armedDelete = null; return render(); }
+  if (a === "cancelEdit") { editingBook = null; armedDelete = null; return render(); }
+  if (a === "delBook") {
+    if (armedDelete !== t.dataset.id) { armedDelete = t.dataset.id; render(); setTimeout(() => { if (armedDelete === t.dataset.id) { armedDelete = null; render(); } }, 3000); return; }
+    return deleteBook(t.dataset.id);
+  }
+  if (a === "reveal") { state.reviewShown = true; return render(); }
+  if (a === "recall") {
+    const e = allDue()[0]; if (!e) return;
+    const ok = t.dataset.ok === "1";
+    const n = JSON.parse(JSON.stringify(e));
+    if (ok) { if ((n.stage || 0) === 0) { n.stage = 1; n.nextReview = addDays(30); } else { n.stage = 2; n.nextReview = null; } }
+    else n.nextReview = addDays(3);
+    n.lastReview = today();
+    state.reviewShown = false;
+    await saveEntryNow(n); return render();
+  }
+  /* editor */
+  if (!curE) return;
+  if (a === "close") return closeEditor();
+  if (a === "prev") return openEditor(curE.no - 1);
+  if (a === "next") return openEditor(curE.no + 1);
+  if (a === "toggleRead") {
+    if (curE.readAt) { curE.readAt = null; curE.nextReview = null; curE.stage = 0; curE.lastReview = null; }
+    else { curE.readAt = today(); curE.nextReview = addDays(7); curE.stage = 0; }
+    await saveEntryNow(curE); return renderEditor();
+  }
+  if (a === "toggleStar") { curE.star = !curE.star; await saveEntryNow(curE); return renderEditor(); }
+  if (a === "delPhoto") {
+    const id = t.dataset.id;
+    if (armedPhoto !== id) { armedPhoto = id; renderEditor(); clearTimeout(armTimer); armTimer = setTimeout(() => { if (armedPhoto === id) { armedPhoto = null; if (curE) renderEditor(); } }, 3000); return; }
+    armedPhoto = null;
+    curE.photos = curE.photos.filter(x => x !== id);
+    await saveEntryNow(curE);
+    idb.del("photos", id).catch(() => {});
+    blobCache.delete(id);
+    return renderEditor();
+  }
+  if (a === "pick") { const inp = $("#f-photo"); if (inp) inp.click(); return; }
+  if (a === "review") return runReview();
+  if (a === "stop") { if (abortCtl) abortCtl.abort(); return; }
+  if (a === "example") return runExample();
+});
+document.addEventListener("input", ev => {
+  const k = ev.target.dataset && ev.target.dataset.k;
+  if (!k || !curE) return;
+  curE[k] = ev.target.value;
+  if (k === "summary") liveSummary();
+  scheduleSave(curE);
+});
+document.addEventListener("focusout", ev => { if (curE && ev.target.dataset && ev.target.dataset.k && saveTimer) saveEntryNow(curE); });
+document.addEventListener("change", async ev => {
+  if (ev.target.id === "f-photo" || ev.target.id === "f-photo2") {
+    const files = Array.from(ev.target.files || []); ev.target.value = "";
+    if (!files.length) { photoMsg("写真が選ばれませんでした。"); return; }
+    await addPhotos(files); return;
+  }
+  if (ev.target.id === "f-restore") { const f = ev.target.files && ev.target.files[0]; ev.target.value = ""; if (f) await importBackup(f); return; }
+  if (ev.target.id === "bookSel") { await selectBook(ev.target.value); render(); }
+});
+document.addEventListener("paste", ev => {
+  if (!curE) return;
+  const cd = ev.clipboardData; let files = [];
+  if (cd) {
+    files = Array.from(cd.files || []);
+    if (!files.length) files = Array.from(cd.items || []).filter(i => i.kind === "file").map(i => i.getAsFile()).filter(Boolean);
+  }
+  if (files.length) { ev.preventDefault(); addPhotos(files); return; }
+  if (ev.target.closest && ev.target.closest("#pasteBox")) setTimeout(harvestPasteBox, 50);
+});
+async function harvestPasteBox() {
+  const box = $("#pasteBox"); if (!box) return;
+  const imgs = Array.from(box.querySelectorAll("img"));
+  box.innerHTML = "";
+  if (!imgs.length) { photoMsg("貼り付けた内容に写真が見つかりませんでした。写真アプリで写真を開き、共有 →「コピー」してから貼り付けてください。"); return; }
+  const files = [];
+  for (const im of imgs) {
+    try { const r = await fetch(im.src); files.push(await r.blob()); }
+    catch {
+      try { await im.decode(); const cv = document.createElement("canvas"); cv.width = im.naturalWidth; cv.height = im.naturalHeight; cv.getContext("2d").drawImage(im, 0, 0); const b = await new Promise(r => cv.toBlob(r, "image/jpeg", 0.9)); if (b) files.push(b); } catch {}
+    }
+  }
+  if (files.length) addPhotos(files); else photoMsg("貼り付けた写真を読み込めませんでした。");
+}
+document.addEventListener("input", ev => { if (ev.target.id === "pasteBox") setTimeout(harvestPasteBox, 50); });
+document.addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const f = ev.target, fd = new FormData(f);
+  const title = String(fd.get("title") || "").trim(), author = String(fd.get("author") || "").trim(), count = Math.floor(+fd.get("count"));
+  if (!title || !(count >= 1 && count <= 999)) return;
+  if (f.dataset.form === "add") {
+    const id = "b" + Date.now().toString(36);
+    const b = { id, title, author, count, createdAt: new Date().toISOString(), lastOpenedAt: new Date().toISOString() };
+    try { await store.putBook(b); } catch { msg("本を保存できませんでした。もう一度押してください。"); return; }
+    state.books[id] = b; state.current = id; state.filter = "all";
+    return setTab("notes");
+  }
+  if (f.dataset.form === "edit") {
+    const b = state.books[f.dataset.id]; if (!b) return;
+    let maxUsed = 0; for (const e of Object.values(state.entries)) if (e.bookId === b.id && hasContent(e)) maxUsed = Math.max(maxUsed, e.no);
+    if (count < maxUsed) { const m = $("#eb-msg"); m.textContent = `No.${pad3(maxUsed)}まで記入済みなので、章の数を${maxUsed}より少なくできません。`; m.hidden = false; return; }
+    const nb = { ...b, title, author, count };
+    try { await store.putBook(nb); } catch { msg("本を保存できませんでした。"); return; }
+    state.books[b.id] = nb; editingBook = null; render();
+  }
+});
+async function selectBook(id) {
+  if (!state.books[id]) return;
+  state.current = id; state.filter = "all";
+  const b = { ...state.books[id], lastOpenedAt: new Date().toISOString() };
+  state.books[id] = b;
+  store.putBook(b).catch(() => {});
+}
+async function deleteBook(id) {
+  const b = state.books[id]; if (!b) return;
+  msg("削除しています…", "info");
+  try {
+    for (const [k, e] of Object.entries(state.entries)) {
+      if (e.bookId !== id) continue;
+      for (const p of e.photos || []) await idb.del("photos", p).catch(() => {});
+      await store.delEntry(k); delete state.entries[k];
+    }
+    await store.delBook(id); delete state.books[id];
+    if (state.current === id) state.current = Object.keys(state.books)[0] || null;
+    msg("");
+  } catch { msg("削除の途中で失敗しました。もう一度試してください。"); }
+  editingBook = null; armedDelete = null; render();
+}
+window.addEventListener("pagehide", () => { if (curE && saveTimer) saveEntryNow(curE); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && curE && saveTimer) saveEntryNow(curE); });
+
+/* ---------- start ---------- */
+async function start() {
+  try { const t = localStorage.getItem(LS + "-tab"); if (t) state.tab = t; } catch {}
+  document.querySelectorAll("nav.tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === state.tab ? "true" : "false"));
+  render();
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch {}
+  try { const d = await store.load(); state.books = d.books; state.entries = d.entries; Object.keys(d.entries).forEach(k => stored.add(k)); }
+  catch { msg("記録を読み込めませんでした。ページを開き直してください。"); }
+  const books = Object.values(state.books).sort((a, b) => (b.lastOpenedAt || "") > (a.lastOpenedAt || "") ? 1 : -1);
+  state.current = books[0] ? books[0].id : null;
+  if (!state.current) state.tab = "shelf";
+  state.ready = true;
+  setTab(state.tab);
+}
+start();
+})();
+</script>
+</body>
+</html>
