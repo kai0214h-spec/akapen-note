@@ -432,7 +432,7 @@ function howtoHTML() {
       <p style="margin:0">Google AI Studio（aistudio.google.com）で無料のAPIキーを作り、下に貼り付けてください。キーはこの端末のブラウザ内にだけ保存されます。</p>
       <p class="small muted" style="margin:0">無料枠では、送った文や写真がGoogleのサービス改善に使われることがあります。</p>
       <div class="field"><label class="f" for="g-key">APIキー</label><input type="password" id="g-key" autocomplete="off" value="${esc(getKey())}" placeholder="AIza…"></div>
-      <div class="field"><label class="f" for="g-model">モデル</label><input type="text" id="g-model" value="${esc(getModel())}"></div>
+      <div class="field"><label class="f" for="g-model">モデル（auto のままで、無料で使える新しいモデルを自動で選びます）</label><input type="text" id="g-model" value="${esc(getModel())}" placeholder="auto"></div>
       <div class="row"><button class="btn primary" data-act="saveKey">保存</button><span id="keyMsg" class="small muted"></span></div></section>
   </div>`;
 }
@@ -525,7 +525,7 @@ function renderEditor() {
       </div>
       ${getKey() ? "" : '<p class="small muted" style="margin:0">AI添削を使うには、「使い方」タブでGeminiのAPIキーを設定してください。</p>'}
       ${!canExample ? `<p class="small muted num" style="margin:0">要約例は、文を変えて2回添削を受けると見られます（現在 ${e.attempts || 0}回）。</p>` : ""}
-      ${aiError ? `<div class="notice">${esc(aiError)}</div>` : ""}
+      ${aiError ? `<div class="notice" style="white-space:pre-line">${esc(aiError)}</div>` : ""}
       ${fb ? penHTML(fb, staleText, stalePhoto) : ""}
       ${e.modelExample ? `<div class="pen"><div class="basis">要約例（${countChars(e.modelExample.example)}字${countChars(e.modelExample.example) < MIN || countChars(e.modelExample.example) > MAX ? "：45〜65字の範囲外です" : ""}）</div>
         <div style="color:var(--ink)">${esc(e.modelExample.example)}</div><div>${esc(e.modelExample.changes)}</div></div>` : ""}
@@ -542,7 +542,7 @@ function penHTML(fb, staleText, stalePhoto) {
   const marks = (fb.checks || []).map(c => `<dt>${esc(c.item)} <span class="mk">${esc(c.mark)}</span></dt><dd>${esc(c.comment)}</dd>`).join("");
   return `<div class="pen">
     ${fb.grade ? `<div class="stamp" aria-label="総合評価 ${esc(fb.grade)}">${esc(fb.grade)}</div>` : ""}
-    <div class="basis">${fb.basis === "text" ? `本文の写真${fb.photoCount}枚をもとに添削` : "写真なし：概念の一般的な意味で添削"} ・ ${esc(fb.count)}字の文に対して</div>
+    <div class="basis">${fb.basis === "text" ? `本文の写真${fb.photoCount}枚をもとに添削` : "写真なし：概念の一般的な意味で添削"} ・ ${esc(fb.count)}字の文に対して${fb.model ? " ・ " + esc(fb.model) : ""}</div>
     ${staleText ? '<div class="stale">この添削は書き直す前の文に対するものです。</div>' : ""}
     ${!staleText && stalePhoto ? '<div class="stale">添削の後で写真が変わりました。</div>' : ""}
     ${fb.basis === "text" && fb.readable && fb.readable !== "すべて読めた" ? `<div class="stale">写真：${esc(fb.readable)}。ページ全体をまっすぐ、明るく撮り直すと読みやすくなります。</div>` : ""}
@@ -611,7 +611,7 @@ function wireDrop() {
 /* ---------- AI ---------- */
 const AI_ERR = {
   not_granted: "AIの利用が許可されませんでした。もう一度押すと確認画面が出ます。",
-  rate_limited: "Geminiの無料枠の上限か、混み合っています。1分ほど待ってからもう一度押してください。",
+  rate_limited: "使えるGeminiのモデルがすべて無料枠の上限か混雑中でした。1分ほど待ってもだめなら、今日の上限に達しています。",
   no_key: "GeminiのAPIキーが未設定です。「使い方」タブの設定で入力してください。",
   bad_key: "GeminiのAPIキーが正しくないか、使えない状態です。「使い方」タブで確認してください。",
   network: "通信できませんでした。電波の良い所でもう一度押してください。",
@@ -626,14 +626,28 @@ const AI_ERR = {
 };
 const GEM = "https://generativelanguage.googleapis.com/v1beta/";
 const getKey = () => { try { return localStorage.getItem(LS + "-gkey") || ""; } catch { return ""; } };
-const getModel = () => { try { return localStorage.getItem(LS + "-gmodel") || "gemini-2.5-flash"; } catch { return "gemini-2.5-flash"; } };
+const BAD_MODEL = /omni|nano|image|tts|live|audio|transcribe|translate|robotics|embedding|pro/;
+const getModel = () => {
+  try { const m = localStorage.getItem(LS + "-gmodel") || "auto"; if (m !== "auto" && BAD_MODEL.test(m)) { localStorage.setItem(LS + "-gmodel", "auto"); return "auto"; } return m; }
+  catch { return "auto"; }
+};
+const setModel = m => { try { localStorage.setItem(LS + "-gmodel", m); } catch {} };
 const b64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(blob); });
-async function pickModel(key) {
-  const r = await fetch(GEM + "models?pageSize=200", { headers: { "x-goog-api-key": key } });
-  if (!r.ok) return null;
+/* free-tier text+image models, newest first: plain flash, then preview, then lite */
+let modelList = null;
+async function listModels(key) {
+  if (modelList) return modelList;
+  const r = await fetch(GEM + "models?pageSize=1000", { headers: { "x-goog-api-key": key } });
+  if (!r.ok) throw { code: r.status === 400 || r.status === 403 ? "bad_key" : "network", status: r.status };
   const j = await r.json();
-  const ms = (j.models || []).filter(m => (m.supportedGenerationMethods || []).includes("generateContent") && /flash/.test(m.name) && !/lite|tts|image|live|audio|thinking-exp/.test(m.name)).map(m => m.name.replace(/^models\//, ""));
-  return ms.sort().reverse()[0] || null;
+  const ver = n => (n.match(/gemini-(\d+(?:\.\d+)?)/) || [0, "0"])[1] * 1;
+  const rank = n => (/lite/.test(n) ? 2 : 0) + (/preview|exp/.test(n) ? 1 : 0);
+  modelList = (j.models || [])
+    .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+    .map(m => m.name.replace(/^models\//, ""))
+    .filter(n => /^gemini-[\d.]+-flash/.test(n) && !/live|tts|image|audio|transcribe|translate|robotics|embedding|omni|nano|thinking|-\d{3}$|latest/.test(n))
+    .sort((a, b) => rank(a) - rank(b) || ver(b) - ver(a) || a.localeCompare(b));
+  return modelList;
 }
 async function geminiJson(prompt, blobs, signal) {
   const key = getKey();
@@ -642,26 +656,37 @@ async function geminiJson(prompt, blobs, signal) {
   for (const b of blobs || []) parts.push({ inline_data: { mime_type: b.type || "image/jpeg", data: await b64(b) } });
   const body = JSON.stringify({ contents: [{ role: "user", parts }], generationConfig: { responseMimeType: "application/json", temperature: 0.4 } });
   const call = model => fetch(GEM + "models/" + model + ":generateContent", { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body, signal });
-  let r;
-  try { r = await call(getModel()); } catch (err) { throw { code: signal && signal.aborted ? "cancelled" : "network" }; }
-  if (r.status === 404) {
-    const m = await pickModel(key).catch(() => null);
-    if (m) { try { localStorage.setItem(LS + "-gmodel", m); } catch {} r = await call(m).catch(() => null); }
-    if (!r) throw { code: "network" };
-  }
-  if (!r.ok) {
+  const chosen = getModel();
+  let candidates = [];
+  if (chosen && chosen !== "auto") candidates.push(chosen);
+  try { for (const m of await listModels(key)) if (!candidates.includes(m)) candidates.push(m); }
+  catch (err) { if (err && err.code === "bad_key") throw err; if (!candidates.length) candidates.push("gemini-2.5-flash"); }
+  candidates = candidates.slice(0, 6);
+  let last = null;
+  for (const model of candidates) {
+    let r;
+    try { r = await call(model); } catch { throw { code: signal && signal.aborted ? "cancelled" : "network" }; }
+    if (r.ok) {
+      if (chosen !== "auto" && chosen !== model) setModel("auto"); /* the typed model failed: go back to automatic choice */
+      lastModel = model;
+      const j = await r.json();
+      const cand = (j.candidates || [])[0];
+      if (!cand) throw { code: j.promptFeedback && j.promptFeedback.blockReason ? "refused" : "empty_completion" };
+      const text = ((cand.content && cand.content.parts) || []).map(p => p.text || "").join("");
+      const a = text.indexOf("{"), z = text.lastIndexOf("}");
+      if (a < 0 || z < a) throw { code: "invalid_json" };
+      try { return JSON.parse(text.slice(a, z + 1)); } catch { throw { code: "invalid_json" }; }
+    }
     let detail = ""; try { detail = (await r.json()).error.message || ""; } catch {}
-    throw { code: r.status === 429 ? "rate_limited" : (r.status === 400 && /key/i.test(detail)) || r.status === 403 ? "bad_key" : "upstream_error", status: r.status, detail };
+    last = { status: r.status, detail, model };
+    if (r.status === 400 && /api key|API_KEY/i.test(detail) || r.status === 401 || r.status === 403) throw { code: "bad_key", detail };
+    if (r.status === 429 || r.status === 404 || r.status === 503 || r.status === 500) continue; /* this model is out of quota, gone or busy: try the next one */
+    throw { code: "upstream_error", detail, status: r.status };
   }
-  const j = await r.json();
-  const cand = (j.candidates || [])[0];
-  if (!cand) throw { code: j.promptFeedback && j.promptFeedback.blockReason ? "refused" : "empty_completion" };
-  const text = ((cand.content && cand.content.parts) || []).map(p => p.text || "").join("");
-  const m = text.indexOf("{"), n = text.lastIndexOf("}");
-  if (m < 0 || n < m) throw { code: "invalid_json" };
-  try { return JSON.parse(text.slice(m, n + 1)); } catch { throw { code: "invalid_json" }; }
+  throw { code: last && last.status === 429 ? "rate_limited" : "upstream_error", detail: last ? last.model + ": " + last.detail : "", status: last && last.status };
 }
-const aiErrText = e => (e && AI_ERR[e.code]) || "添削できませんでした（" + ((e && e.code) || "通信エラー") + "）。もう一度押してください。";
+let lastModel = "";
+const aiErrText = e => ((e && AI_ERR[e.code]) || "添削できませんでした（" + ((e && e.code) || "通信エラー") + "）。もう一度押してください。") + (e && e.detail ? "\n［Googleからの説明］" + String(e.detail).slice(0, 300) : "");
 function buildPrompt(e, b, photoCount) {
   const withPhotos = photoCount > 0;
   const prev = e.feedback && e.feedback.hint ? `\n前回のヒント：「${e.feedback.hint}」\n書き直しがこのヒントに応えているかも見てください。` : "";
@@ -730,7 +755,7 @@ async function runReview() {
     if (curE !== e) return;
     const fb = validateFb(r, withPhotos);
     const changed = !e.feedback || e.feedback.text !== e.summary;
-    Object.assign(fb, { text: e.summary, count: countChars(e.summary), basis: withPhotos ? "text" : "general", photoCount: blobs.length, photoKey, createdAt: new Date().toISOString() });
+    Object.assign(fb, { text: e.summary, count: countChars(e.summary), basis: withPhotos ? "text" : "general", photoCount: blobs.length, photoKey, model: lastModel, createdAt: new Date().toISOString() });
     e.feedback = fb;
     if (changed) e.attempts = (e.attempts || 0) + 1;
     if (e.photos.length && !withPhotos) aiError = "写真を送れなかったため、写真なしで添削しました。";
@@ -817,7 +842,7 @@ document.addEventListener("click", async ev => {
   if (a === "csv") return exportCSV();
   if (a === "backup") return exportBackup();
   if (a === "saveKey") {
-    try { localStorage.setItem(LS + "-gkey", $("#g-key").value.trim()); localStorage.setItem(LS + "-gmodel", $("#g-model").value.trim() || "gemini-2.5-flash"); $("#keyMsg").textContent = "保存しました"; }
+    try { localStorage.setItem(LS + "-gkey", $("#g-key").value.trim()); localStorage.setItem(LS + "-gmodel", $("#g-model").value.trim() || "auto"); modelList = null; $("#keyMsg").textContent = "保存しました"; }
     catch { $("#keyMsg").textContent = "保存できませんでした"; }
     return;
   }
